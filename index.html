@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Student Voice</title>
-<meta name="student-voice-build" content="firebase-hidden-flags-v2">
 
 <style>
 
@@ -2091,23 +2090,6 @@ window.dispatchEvent(new Event("studentVoiceFirebaseReady"));
 ================================= */
 
 let ideas = [];
-
-/* =================================
-   PUBLIC VISIBILITY FILTER
-   Flagged submissions stay in Firestore for private review,
-   but are never shown anywhere in the student-facing site.
-================================= */
-function isIdeaPublic(idea) {
-    if (!idea) return false;
-
-    const status = String(idea.status || "").trim().toUpperCase();
-
-    return idea.flagged !== true && status !== "FLAGGED";
-}
-
-function getVisibleIdeas() {
-    return ideas.filter(isIdeaPublic);
-}
 let selectedCategory = "All";
 let firebaseListenerStarted = false;
 
@@ -2144,12 +2126,11 @@ window.addEventListener(
 /* =================================
    AUTOMATIC MODERATION
    Flags inappropriate submissions automatically.
-   The post still appears immediately; no approval step.
+   Flagged submissions are saved in Firestore but hidden from every public view.
 ================================= */
 
 function normalizeForModeration(value) {
-
-    return value
+    return String(value || "")
         .toLowerCase()
         .normalize("NFKD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -2159,119 +2140,149 @@ function normalizeForModeration(value) {
         .replace(/0/g, "o")
         .replace(/[$5]/g, "s")
         .replace(/7/g, "t")
+        .replace(/8/g, "b")
         .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/(.)\1{2,}/g, "$1$1")
         .replace(/\s+/g, " ")
         .trim();
-
 }
 
+function containsModerationTerm(normalized, compact, term) {
+    const cleanTerm = normalizeForModeration(term);
+    const escaped = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const wordPattern = new RegExp("(?:^|\\s)" + escaped + "(?:$|\\s)", "i");
+
+    if (wordPattern.test(normalized)) {
+        return true;
+    }
+
+    const compactTerm = cleanTerm.replace(/\s/g, "");
+    return compactTerm.length >= 4 && compact.includes(compactTerm);
+}
 
 function moderateFeedback(value) {
+    const normalized = normalizeForModeration(value);
+    const compact = normalized.replace(/\s/g, "");
 
-    const normalized =
-        normalizeForModeration(value);
-
-    const compact =
-        normalized.replace(/\s/g, "");
-
-    const rules = [
+    const wordRules = [
         {
             reason: "Profanity",
             words: [
-                "fuck", "fucking", "fucker",
-                "shit", "bullshit",
-                "bitch", "asshole",
-                "motherfucker", "cunt"
+                "fuck", "fucking", "fucker", "motherfucker", "motherfucking",
+                "shit", "bullshit", "bitch", "asshole", "cunt", "dickhead",
+                "pussy", "whore", "slut"
             ]
         },
         {
-            reason: "Sexual content",
+            reason: "Hate speech or slur",
             words: [
-                "porn", "porno", "nudes", "nude",
-                "sendnudes", "sexvideo"
+                "nigger", "nigga", "niggers", "niggas", "coon", "spic", "spics",
+                "wetback", "wetbacks", "chink", "chinks", "gook", "gooks",
+                "kike", "kikes", "beaner", "beaners", "raghead", "ragheads",
+                "sandnigger", "faggot", "faggots", "fag", "dyke", "dykes",
+                "tranny", "trannies", "shemale", "retard", "retarded"
             ]
         },
         {
-            reason: "Threatening language",
-            phrases: [
-                "kill you", "shoot you", "hurt you",
-                "bomb the school", "school shooting",
-                "go die"
-            ]
-        },
-        {
-            reason: "Harassment",
-            phrases: [
-                "i hate you", "you are ugly",
-                "youre ugly", "you are stupid",
-                "youre stupid", "you are a loser",
-                "youre a loser"
+            reason: "Sexual or explicit content",
+            words: [
+                "porn", "porno", "pornography", "nudes", "nude", "sendnudes",
+                "sexvideo", "sextape", "blowjob", "handjob", "cumshot"
             ]
         }
     ];
 
-
-    for (const rule of rules) {
-
-        if (rule.words) {
-
-            for (const word of rule.words) {
-
-                const wordPattern =
-                    new RegExp(
-                        "\\b" + word + "\\b",
-                        "i"
-                    );
-
-                if (
-                    wordPattern.test(normalized)
-                    ||
-                    (word.length >= 4 && compact.includes(word))
-                ) {
-
-                    return {
-                        flagged: true,
-                        reason: rule.reason
-                    };
-
-                }
-
+    for (const rule of wordRules) {
+        for (const word of rule.words) {
+            if (containsModerationTerm(normalized, compact, word)) {
+                return { flagged: true, reason: rule.reason };
             }
-
         }
-
-
-        if (rule.phrases) {
-
-            for (const phrase of rule.phrases) {
-
-                if (
-                    normalized.includes(phrase)
-                    ||
-                    compact.includes(
-                        phrase.replace(/\s/g, "")
-                    )
-                ) {
-
-                    return {
-                        flagged: true,
-                        reason: rule.reason
-                    };
-
-                }
-
-            }
-
-        }
-
     }
 
+    const phraseRules = [
+        {
+            reason: "Threat or violence",
+            phrases: [
+                "kill you", "shoot you", "stab you", "beat you up", "hurt you",
+                "bomb the school", "school shooting", "bring a gun to school",
+                "shoot the school", "go die", "kys"
+            ]
+        },
+        {
+            reason: "Harassment or bullying",
+            phrases: [
+                "i hate you", "everyone hates you", "nobody likes you", "shut up",
+                "you are ugly", "youre ugly", "you are stupid", "youre stupid",
+                "you are dumb", "youre dumb", "you are a loser", "youre a loser",
+                "you are worthless", "youre worthless"
+            ]
+        },
+        {
+            reason: "Sexual or explicit content",
+            phrases: [
+                "send me nudes", "send nude", "sex with", "have sex with",
+                "explicit picture", "explicit photo"
+            ]
+        }
+    ];
 
-    return {
-        flagged: false,
-        reason: ""
-    };
+    for (const rule of phraseRules) {
+        for (const phrase of rule.phrases) {
+            const cleanPhrase = normalizeForModeration(phrase);
+            if (
+                normalized.includes(cleanPhrase) ||
+                compact.includes(cleanPhrase.replace(/\s/g, ""))
+            ) {
+                return { flagged: true, reason: rule.reason };
+            }
+        }
+    }
 
+    // Identity/religion attacks are blocked while respectful discussion remains allowed.
+    const protectedGroup = String.raw`(?:black people|white people|mexicans?|latinos?|latinas?|hispanics?|asians?|native americans?|immigrants?|muslims?|christians?|jews?|jewish people|hindus?|buddhists?|atheists?|gay people|gays|lesbians?|bisexuals?|trans people|transgender people|lgbtq people|lgbt people|disabled people|autistic people|women|men)`;
+    const abusiveDescriptor = String.raw`(?:stupid|dumb|disgusting|gross|evil|inferior|trash|worthless|awful|animals?|monkeys?|vermin|disease|a problem)`;
+
+    const hatePatterns = [
+        new RegExp(String.raw`\b(?:i\s+)?hate\s+(?:all\s+)?${protectedGroup}\b`, "i"),
+        new RegExp(String.raw`\b${protectedGroup}\s+(?:are|r)\s+(?:all\s+)?${abusiveDescriptor}\b`, "i"),
+        new RegExp(String.raw`\b${protectedGroup}\s+should\s+(?:die|leave|go away|not exist|be banned|be removed)\b`, "i"),
+        new RegExp(String.raw`\b(?:ban|get rid of|remove)\s+(?:all\s+)?${protectedGroup}\b`, "i"),
+        new RegExp(String.raw`\b(?:your|that)\s+(?:religion|faith|beliefs?)\s+(?:is|are)\s+${abusiveDescriptor}\b`, "i")
+    ];
+
+    if (hatePatterns.some(pattern => pattern.test(normalized))) {
+        return { flagged: true, reason: "Identity or belief-based attack" };
+    }
+
+    // Keep personal contact information off a public student feed.
+    const emailPattern = /\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/i;
+    const phonePattern = /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}/;
+    const addressPattern = /\b(?:my|their|his|her|your)\s+(?:home\s+)?address\s+is\b/i;
+
+    if (emailPattern.test(value) || phonePattern.test(value) || addressPattern.test(normalized)) {
+        return { flagged: true, reason: "Personal information" };
+    }
+
+    return { flagged: false, reason: "" };
+}
+
+function isPublicIdea(idea) {
+    if (!idea || typeof idea.text !== "string") {
+        return false;
+    }
+
+    if (idea.flagged === true || String(idea.status || "").toUpperCase() === "FLAGGED") {
+        return false;
+    }
+
+    // Re-check older posts with the newest moderation rules so previously missed
+    // inappropriate posts disappear immediately without needing a database edit.
+    return !moderateFeedback(idea.text).flagged;
+}
+
+function getPublicIdeas() {
+    return ideas.filter(isPublicIdea);
 }
 
 
@@ -2332,7 +2343,7 @@ async function voteIdea(id) {
 
     const idea = ideas.find(x => x.id === id);
 
-    if (!idea || !isIdeaPublic(idea)) {
+    if (!idea || !isPublicIdea(idea)) {
         return;
     }
 
@@ -2394,7 +2405,7 @@ function displayIdeas() {
 
 
     let filtered =
-        getVisibleIdeas().filter(
+        getPublicIdeas().filter(
             idea => {
 
                 const categoryMatch =
@@ -2711,55 +2722,25 @@ function showAllIdeas() {
 ================================= */
 
 function updateStats() {
+    const publicIdeas = getPublicIdeas();
 
-    const visibleIdeas = getVisibleIdeas();
+    document.getElementById("ideaCount").innerText = publicIdeas.length;
 
-    document.getElementById(
-        "ideaCount"
-    )
-    .innerText =
-        visibleIdeas.length;
+    const votes = publicIdeas.reduce(
+        (total, idea) => total + Number(idea.votes || 0),
+        0
+    );
 
+    document.getElementById("voteCount").innerText = votes;
 
-    const votes =
-        visibleIdeas.reduce(
-            (total, idea) =>
-                total +
-                (Number(idea.votes) || 0),
-            0
-        );
+    const categories = new Set(
+        publicIdeas.map(idea => idea.category)
+    );
 
-
-    document.getElementById(
-        "voteCount"
-    )
-    .innerText =
-        votes;
-
-
-    const categories =
-        new Set(
-            visibleIdeas.map(
-                x =>
-                    x.category
-            )
-        );
-
-
-    document.getElementById(
-        "categoryCount"
-    )
-    .innerText =
-        categories.size;
-
-
-    document.getElementById(
-        "allCount"
-    )
-    .innerText =
-        visibleIdeas.length;
-
+    document.getElementById("categoryCount").innerText = categories.size;
+    document.getElementById("allCount").innerText = publicIdeas.length;
 }
+
 
 
 /* =================================
@@ -2775,7 +2756,7 @@ function updateTrending() {
 
 
     const trending =
-        [...getVisibleIdeas()]
+        [...getPublicIdeas()]
         .sort(
             (a,b) =>
                 b.votes -
