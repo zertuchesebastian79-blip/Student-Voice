@@ -2141,8 +2141,9 @@ function normalizeForModeration(value) {
         .replace(/[$5]/g, "s")
         .replace(/7/g, "t")
         .replace(/8/g, "b")
-        .replace(/[^a-z0-9\s]/g, " ")
-        .replace(/(.)\1{2,}/g, "$1$1")
+        // Keep letters from every writing system instead of deleting non-English text.
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .replace(/(.)\1{2,}/gu, "$1$1")
         .replace(/\s+/g, " ")
         .trim();
 }
@@ -2150,44 +2151,101 @@ function normalizeForModeration(value) {
 function containsModerationTerm(normalized, compact, term) {
     const cleanTerm = normalizeForModeration(term);
     const escaped = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const wordPattern = new RegExp("(?:^|\\s)" + escaped + "(?:$|\\s)", "i");
+    const wordPattern = new RegExp("(?:^|\\s)" + escaped + "(?:$|\\s)", "iu");
 
     if (wordPattern.test(normalized)) {
         return true;
     }
 
-    const compactTerm = cleanTerm.replace(/\s/g, "");
-    return compactTerm.length >= 4 && compact.includes(compactTerm);
+    // Catch attempts such as f u c k or f-u-c-k without matching the same
+    // letters inside an innocent word.
+    const characters = [...cleanTerm.replace(/\s/g, "")];
+    if (characters.length >= 4) {
+        const spaced = characters
+            .map(ch => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+            .join("\\s*");
+        const spacedPattern = new RegExp("(?:^|\\s)" + spaced + "(?:$|\\s)", "iu");
+        if (spacedPattern.test(normalized)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function containsModerationPhrase(normalized, compact, phrase) {
+    const cleanPhrase = normalizeForModeration(phrase);
+    return (
+        normalized.includes(cleanPhrase) ||
+        compact.includes(cleanPhrase.replace(/\s/g, ""))
+    );
 }
 
 function moderateFeedback(value) {
     const normalized = normalizeForModeration(value);
     const compact = normalized.replace(/\s/g, "");
 
+    /*
+       Multilingual school-safety filter.
+       English + Spanish have the broadest coverage, with additional common
+       profanity/explicit-language coverage for Portuguese, French, Italian,
+       and German. Identity terms by themselves are NEVER blocked; attacks are.
+    */
     const wordRules = [
         {
             reason: "Profanity",
             words: [
+                // English
                 "fuck", "fucking", "fucker", "motherfucker", "motherfucking",
                 "shit", "bullshit", "bitch", "asshole", "cunt", "dickhead",
-                "pussy", "whore", "slut"
+                "pussy", "whore", "slut",
+
+                // Spanish
+                "pendejo", "pendeja", "pendejos", "pendejas", "cabron", "cabrona",
+                "cabrones", "cabronas", "chingada", "chingado", "chingados",
+                "chingar", "chingate", "pinche", "culero", "culera", "culeros",
+                "culeras", "verga", "mierda", "puta", "putas",
+
+                // Portuguese
+                "caralho", "porra", "merda", "puta", "putas",
+
+                // French
+                "merde", "putain", "connard", "connasse",
+
+                // Italian
+                "cazzo", "merda", "stronzo", "stronza",
+
+                // German
+                "scheisse", "arschloch", "hurensohn"
             ]
         },
         {
             reason: "Hate speech or slur",
             words: [
+                // English slurs and common obfuscated forms
                 "nigger", "nigga", "niggers", "niggas", "coon", "spic", "spics",
                 "wetback", "wetbacks", "chink", "chinks", "gook", "gooks",
                 "kike", "kikes", "beaner", "beaners", "raghead", "ragheads",
                 "sandnigger", "faggot", "faggots", "fag", "dyke", "dykes",
-                "tranny", "trannies", "shemale", "retard", "retarded"
+                "tranny", "trannies", "shemale", "retard", "retarded",
+
+                // Spanish / Latin American anti-LGBTQ slurs
+                "maricon", "maricones", "joto", "jotos", "marica", "maricas"
             ]
         },
         {
             reason: "Sexual or explicit content",
             words: [
+                // English
                 "porn", "porno", "pornography", "nudes", "nude", "sendnudes",
-                "sexvideo", "sextape", "blowjob", "handjob", "cumshot"
+                "sexvideo", "sextape", "blowjob", "handjob", "cumshot",
+
+                // Spanish
+                "pornografia", "desnudo", "desnuda", "desnudos", "desnudas",
+                "sextape", "sexting",
+
+                // Portuguese / French / Italian / German common explicit terms
+                "pornografia", "pornographie", "pornographie", "nacktbilder"
             ]
         }
     ];
@@ -2204,51 +2262,116 @@ function moderateFeedback(value) {
         {
             reason: "Threat or violence",
             phrases: [
+                // English
                 "kill you", "shoot you", "stab you", "beat you up", "hurt you",
                 "bomb the school", "school shooting", "bring a gun to school",
-                "shoot the school", "go die", "kys"
+                "shoot the school", "go die",
+
+                // Spanish
+                "te voy a matar", "te matare", "voy a matarte", "te voy a disparar",
+                "voy a dispararte", "te voy a apunalar", "voy a apunalarte",
+                "te voy a golpear", "te voy a pegar", "bomba en la escuela",
+                "tiroteo escolar", "traer un arma a la escuela", "disparar en la escuela",
+                "matar a todos", "muerete",
+
+                // Portuguese
+                "vou te matar", "vou atirar em voce", "bomba na escola",
+
+                // French
+                "je vais te tuer", "je vais te tirer dessus", "bombe a l ecole",
+
+                // Italian
+                "ti ammazzo", "ti sparo", "bomba a scuola",
+
+                // German
+                "ich bringe dich um", "ich erschiesse dich", "bombe in der schule"
             ]
         },
         {
             reason: "Harassment or bullying",
             phrases: [
+                // English
                 "i hate you", "everyone hates you", "nobody likes you", "shut up",
                 "you are ugly", "youre ugly", "you are stupid", "youre stupid",
                 "you are dumb", "youre dumb", "you are a loser", "youre a loser",
-                "you are worthless", "youre worthless"
+                "you are worthless", "youre worthless",
+
+                // Spanish
+                "te odio", "todos te odian", "nadie te quiere", "nadie te soporta",
+                "eres feo", "eres fea", "eres estupido", "eres estupida",
+                "eres idiota", "eres tonto", "eres tonta", "eres un perdedor",
+                "eres una perdedora", "no vales nada", "callate",
+
+                // Portuguese
+                "eu te odeio", "voce e feio", "voce e idiota", "ninguem gosta de voce",
+
+                // French
+                "je te deteste", "tu es moche", "tu es stupide", "personne ne t aime",
+
+                // Italian
+                "ti odio", "sei brutto", "sei brutta", "sei stupido", "sei stupida",
+
+                // German
+                "ich hasse dich", "du bist haesslich", "du bist dumm", "niemand mag dich"
             ]
         },
         {
             reason: "Sexual or explicit content",
             phrases: [
+                // English
                 "send me nudes", "send nude", "sex with", "have sex with",
-                "explicit picture", "explicit photo"
+                "explicit picture", "explicit photo",
+
+                // Spanish
+                "mandame nudes", "manda nudes", "mandame fotos desnudo",
+                "mandame fotos desnuda", "tener sexo con", "video sexual",
+                "foto explicita", "fotos explicitas",
+
+                // Portuguese
+                "manda nudes", "fazer sexo com",
+
+                // French
+                "envoie des nudes", "avoir des relations sexuelles avec",
+
+                // Italian
+                "manda nudes", "fare sesso con",
+
+                // German
+                "schick nudes", "sex mit"
             ]
         }
     ];
 
     for (const rule of phraseRules) {
         for (const phrase of rule.phrases) {
-            const cleanPhrase = normalizeForModeration(phrase);
-            if (
-                normalized.includes(cleanPhrase) ||
-                compact.includes(cleanPhrase.replace(/\s/g, ""))
-            ) {
+            if (containsModerationPhrase(normalized, compact, phrase)) {
                 return { flagged: true, reason: rule.reason };
             }
         }
     }
 
-    // Identity/religion attacks are blocked while respectful discussion remains allowed.
-    const protectedGroup = String.raw`(?:black people|white people|mexicans?|latinos?|latinas?|hispanics?|asians?|native americans?|immigrants?|muslims?|christians?|jews?|jewish people|hindus?|buddhists?|atheists?|gay people|gays|lesbians?|bisexuals?|trans people|transgender people|lgbtq people|lgbt people|disabled people|autistic people|women|men)`;
-    const abusiveDescriptor = String.raw`(?:stupid|dumb|disgusting|gross|evil|inferior|trash|worthless|awful|animals?|monkeys?|vermin|disease|a problem)`;
+    // Identity/religion attacks. Respectful mentions of these groups remain allowed.
+    const protectedGroupEn = String.raw`(?:black people|white people|mexicans?|latinos?|latinas?|hispanics?|asians?|native americans?|immigrants?|muslims?|christians?|jews?|jewish people|hindus?|buddhists?|atheists?|gay people|gays|lesbians?|bisexuals?|trans people|transgender people|lgbtq people|lgbt people|disabled people|autistic people|women|men)`;
+    const abusiveDescriptorEn = String.raw`(?:stupid|dumb|disgusting|gross|evil|inferior|trash|worthless|awful|animals?|monkeys?|vermin|disease|a problem)`;
+
+    const protectedGroupEs = String.raw`(?:negros?|blancos?|mexicanos?|latinos?|latinas?|hispanos?|hispanas?|asiaticos?|asiaticas?|indigenas?|inmigrantes?|musulmanes?|cristianos?|cristianas?|judios?|judias?|hindues?|budistas?|ateos?|ateas?|gays?|lesbianas?|bisexuales?|personas trans|transgeneros?|personas lgbtq|personas lgbt|discapacitados?|discapacitadas?|autistas?|mujeres?|hombres?)`;
+    const abusiveDescriptorEs = String.raw`(?:estupidos?|estupidas?|idiotas?|tontos?|tontas?|asquerosos?|asquerosas?|malos?|malas?|inferiores?|basura|inutiles?|animales?|monos?|plaga|enfermos?|enfermas?|un problema)`;
 
     const hatePatterns = [
-        new RegExp(String.raw`\b(?:i\s+)?hate\s+(?:all\s+)?${protectedGroup}\b`, "i"),
-        new RegExp(String.raw`\b${protectedGroup}\s+(?:are|r)\s+(?:all\s+)?${abusiveDescriptor}\b`, "i"),
-        new RegExp(String.raw`\b${protectedGroup}\s+should\s+(?:die|leave|go away|not exist|be banned|be removed)\b`, "i"),
-        new RegExp(String.raw`\b(?:ban|get rid of|remove)\s+(?:all\s+)?${protectedGroup}\b`, "i"),
-        new RegExp(String.raw`\b(?:your|that)\s+(?:religion|faith|beliefs?)\s+(?:is|are)\s+${abusiveDescriptor}\b`, "i")
+        // English
+        new RegExp(String.raw`\b(?:i\s+)?hate\s+(?:all\s+)?${protectedGroupEn}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupEn}\s+(?:are|r)\s+(?:all\s+)?${abusiveDescriptorEn}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupEn}\s+should\s+(?:die|leave|go away|not exist|be banned|be removed)\b`, "iu"),
+        new RegExp(String.raw`\b(?:ban|get rid of|remove)\s+(?:all\s+)?${protectedGroupEn}\b`, "iu"),
+        new RegExp(String.raw`\b(?:your|that)\s+(?:religion|faith|beliefs?)\s+(?:is|are)\s+${abusiveDescriptorEn}\b`, "iu"),
+
+        // Spanish
+        new RegExp(String.raw`\b(?:odio|detesto)\s+(?:a\s+)?(?:(?:todos?\s+)?los?\s+|(?:todas?\s+)?las?\s+)?${protectedGroupEs}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupEs}\s+son\s+(?:todos?\s+|todas?\s+)?${abusiveDescriptorEs}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupEs}\s+(?:deberian|deben)\s+(?:morir|irse|desaparecer|no existir|ser expulsados|ser expulsadas|ser prohibidos|ser prohibidas)\b`, "iu"),
+        new RegExp(String.raw`\b(?:fuera|expulsen|prohiban|eliminen)\s+(?:a\s+)?(?:(?:todos?\s+)?los?\s+|(?:todas?\s+)?las?\s+)?${protectedGroupEs}\b`, "iu"),
+        new RegExp(String.raw`\b(?:tu|esa)\s+(?:religion|fe|creencias?)\s+(?:es|son)\s+${abusiveDescriptorEs}\b`, "iu"),
+        new RegExp(String.raw`\bmuerte\s+a\s+(?:los?\s+|las?\s+)?${protectedGroupEs}\b`, "iu")
     ];
 
     if (hatePatterns.some(pattern => pattern.test(normalized))) {
@@ -2258,9 +2381,16 @@ function moderateFeedback(value) {
     // Keep personal contact information off a public student feed.
     const emailPattern = /\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/i;
     const phonePattern = /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}/;
-    const addressPattern = /\b(?:my|their|his|her|your)\s+(?:home\s+)?address\s+is\b/i;
+    const addressPatterns = [
+        /\b(?:my|their|his|her|your)\s+(?:home\s+)?address\s+is\b/i,
+        /\b(?:mi|tu|su)\s+direccion\s+(?:de\s+casa\s+)?es\b/i
+    ];
 
-    if (emailPattern.test(value) || phonePattern.test(value) || addressPattern.test(normalized)) {
+    if (
+        emailPattern.test(value) ||
+        phonePattern.test(value) ||
+        addressPatterns.some(pattern => pattern.test(normalized))
+    ) {
         return { flagged: true, reason: "Personal information" };
     }
 
