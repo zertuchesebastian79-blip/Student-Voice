@@ -2187,9 +2187,10 @@ function moderateFeedback(value) {
 
     /*
        Multilingual school-safety filter.
-       English + Spanish have the broadest coverage, with additional common
-       profanity/explicit-language coverage for Portuguese, French, Italian,
-       and German. Identity terms by themselves are NEVER blocked; attacks are.
+       Broad profanity, slur, sexual-content, threat, bullying, and identity-
+       attack coverage for English, Spanish, Portuguese, French, Italian,
+       German, Dutch, Polish, and Russian. Identity/religion terms by themselves
+       are NEVER blocked; only abusive or demeaning use is filtered.
     */
     const wordRules = [
         {
@@ -2198,39 +2199,76 @@ function moderateFeedback(value) {
                 // English
                 "fuck", "fucking", "fucker", "motherfucker", "motherfucking",
                 "shit", "bullshit", "bitch", "asshole", "cunt", "dickhead",
-                "pussy", "whore", "slut",
+                "pussy", "whore", "slut", "bastard", "dumbass", "jackass",
 
-                // Spanish
+                // Spanish (Mexico + broader Latin America/Spain)
                 "pendejo", "pendeja", "pendejos", "pendejas", "cabron", "cabrona",
                 "cabrones", "cabronas", "chingada", "chingado", "chingados",
-                "chingar", "chingate", "pinche", "culero", "culera", "culeros",
-                "culeras", "verga", "mierda", "puta", "putas",
+                "chingadas", "chingar", "chingate", "pinche", "culero", "culera",
+                "culeros", "culeras", "verga", "mierda", "puta", "putas", "puto",
+                "putos", "mamon", "mamona", "mamones", "mamada", "carajo", "coño",
+                "joder", "gilipollas", "hostia", "hijueputa", "malparido", "malparida",
+                "culiao", "culiada", "culiado", "chucha", "boludo", "boluda",
+                "pelotudo", "pelotuda", "conchetumadre", "conchesumadre",
 
                 // Portuguese
-                "caralho", "porra", "merda", "puta", "putas",
+                "caralho", "porra", "merda", "puta", "putas", "puto", "foda",
+                "foder", "fode", "fodase", "cuzao", "babaca", "otario", "otaria",
+                "buceta", "rola", "piranha",
 
                 // French
-                "merde", "putain", "connard", "connasse",
+                "merde", "putain", "connard", "connasse", "salope", "encule",
+                "enculee", "bordel", "batard", "batarde",
 
                 // Italian
-                "cazzo", "merda", "stronzo", "stronza",
+                "cazzo", "merda", "stronzo", "stronza", "puttana", "vaffanculo",
+                "coglione", "cogliona", "troia", "bastardo", "bastarda",
 
                 // German
-                "scheisse", "arschloch", "hurensohn"
+                "scheisse", "arschloch", "hurensohn", "wichser", "fotze", "schlampe",
+                "mistkerl", "drecksau",
+
+                // Dutch
+                "klootzak", "kut", "hoer", "lul", "eikel", "teringlijer",
+
+                // Polish
+                "kurwa", "chuj", "jebac", "jebać", "spierdalaj", "cipa", "skurwysyn",
+
+                // Russian
+                "сука", "блять", "блядь", "хуй", "пизда", "ебать", "нахуй"
             ]
         },
         {
             reason: "Hate speech or slur",
             words: [
-                // English slurs and common obfuscated forms
+                // English
                 "nigger", "nigga", "niggers", "niggas", "coon", "spic", "spics",
                 "wetback", "wetbacks", "chink", "chinks", "gook", "gooks",
                 "kike", "kikes", "beaner", "beaners", "raghead", "ragheads",
                 "sandnigger", "faggot", "faggots", "fag", "dyke", "dykes",
                 "tranny", "trannies", "shemale", "retard", "retarded",
 
-                // Spanish / Latin American anti-LGBTQ slurs
-                "maricon", "maricones", "joto", "jotos", "marica", "maricas"
+                // Spanish / Latin American / Spain
+                "maricon", "maricones", "joto", "jotos", "marica", "maricas",
+                "sudaca", "sudacas",
+
+                // Portuguese
+                "viado", "viados", "bicha", "bichas",
+
+                // French
+                "bougnoule", "bougnoules", "youpin", "youpins",
+
+                // Italian
+                "frocio", "froci",
+
+                // German
+                "schwuchtel", "schwuchteln", "kanake", "kanaken",
+
+                // Polish
+                "pedal", "pedał", "pedaly", "pedały",
+
+                // Russian
+                "пидор", "пидорас", "чурка"
             ]
         },
         {
@@ -2242,10 +2280,28 @@ function moderateFeedback(value) {
 
                 // Spanish
                 "pornografia", "desnudo", "desnuda", "desnudos", "desnudas",
-                "sextape", "sexting",
+                "sextape", "sexting", "sexoexplicito",
 
-                // Portuguese / French / Italian / German common explicit terms
-                "pornografia", "pornographie", "pornographie", "nacktbilder"
+                // Portuguese
+                "pornografia", "nudes", "sexting",
+
+                // French
+                "pornographie", "sexting",
+
+                // Italian
+                "pornografia", "sexting",
+
+                // German
+                "pornografie", "nacktbilder", "sexting",
+
+                // Dutch
+                "pornografie", "naaktfoto", "naaktfotos",
+
+                // Polish
+                "pornografia", "nagie", "nudes",
+
+                // Russian
+                "порно", "порнография", "нюдсы"
             ]
         }
     ];
@@ -2260,31 +2316,74 @@ function moderateFeedback(value) {
 
     const phraseRules = [
         {
+            reason: "Profanity",
+            phrases: [
+                // Spanish phrase variants
+                "no mames", "vete a la verga", "vete al carajo", "hijo de puta",
+                "hija de puta", "hijos de puta", "chingas a tu madre", "chinga tu madre",
+                "concha tu madre", "la concha de tu madre",
+
+                // Portuguese
+                "vai se foder", "vai tomar no cu", "filho da puta", "filha da puta",
+
+                // French
+                "fils de pute", "nique ta mere",
+
+                // Italian
+                "figlio di puttana", "vai a fanculo",
+
+                // German
+                "fick dich", "sohn einer hure",
+
+                // Dutch
+                "krijg de tyfus",
+
+                // Polish
+                "pierdol sie", "pierdol się",
+
+                // Russian
+                "иди нахуй", "пошел нахуй", "пошёл нахуй"
+            ]
+        },
+        {
             reason: "Threat or violence",
             phrases: [
                 // English
                 "kill you", "shoot you", "stab you", "beat you up", "hurt you",
                 "bomb the school", "school shooting", "bring a gun to school",
-                "shoot the school", "go die",
+                "shoot the school", "go die", "kill everyone", "hurt everyone",
 
                 // Spanish
                 "te voy a matar", "te matare", "voy a matarte", "te voy a disparar",
                 "voy a dispararte", "te voy a apunalar", "voy a apunalarte",
                 "te voy a golpear", "te voy a pegar", "bomba en la escuela",
                 "tiroteo escolar", "traer un arma a la escuela", "disparar en la escuela",
-                "matar a todos", "muerete",
+                "matar a todos", "matar a todas", "muerete", "te voy a hacer daño",
 
                 // Portuguese
-                "vou te matar", "vou atirar em voce", "bomba na escola",
+                "vou te matar", "vou atirar em voce", "vou te machucar", "bomba na escola",
+                "tiroteio na escola", "matar todo mundo",
 
                 // French
-                "je vais te tuer", "je vais te tirer dessus", "bombe a l ecole",
+                "je vais te tuer", "je vais te tirer dessus", "je vais te faire du mal",
+                "bombe a l ecole", "fusillade a l ecole", "tuer tout le monde",
 
                 // Italian
-                "ti ammazzo", "ti sparo", "bomba a scuola",
+                "ti ammazzo", "ti sparo", "ti faccio male", "bomba a scuola",
+                "sparatoria a scuola", "uccidere tutti",
 
                 // German
-                "ich bringe dich um", "ich erschiesse dich", "bombe in der schule"
+                "ich bringe dich um", "ich erschiesse dich", "ich tue dir weh",
+                "bombe in der schule", "schiesserei in der schule", "alle umbringen",
+
+                // Dutch
+                "ik vermoord je", "ik schiet je neer", "bom op school",
+
+                // Polish
+                "zabije cie", "zabiję cię", "zastrzele cie", "zastrzelę cię", "bomba w szkole",
+
+                // Russian
+                "я тебя убью", "я тебя застрелю", "бомба в школе", "убить всех"
             ]
         },
         {
@@ -2294,25 +2393,40 @@ function moderateFeedback(value) {
                 "i hate you", "everyone hates you", "nobody likes you", "shut up",
                 "you are ugly", "youre ugly", "you are stupid", "youre stupid",
                 "you are dumb", "youre dumb", "you are a loser", "youre a loser",
-                "you are worthless", "youre worthless",
+                "you are worthless", "youre worthless", "nobody wants you here",
 
                 // Spanish
                 "te odio", "todos te odian", "nadie te quiere", "nadie te soporta",
                 "eres feo", "eres fea", "eres estupido", "eres estupida",
                 "eres idiota", "eres tonto", "eres tonta", "eres un perdedor",
-                "eres una perdedora", "no vales nada", "callate",
+                "eres una perdedora", "no vales nada", "callate", "nadie te quiere aqui",
+                "largate de aqui",
 
                 // Portuguese
-                "eu te odeio", "voce e feio", "voce e idiota", "ninguem gosta de voce",
+                "eu te odeio", "voce e feio", "voce e feia", "voce e idiota",
+                "ninguem gosta de voce", "voce nao vale nada", "cala a boca",
 
                 // French
                 "je te deteste", "tu es moche", "tu es stupide", "personne ne t aime",
+                "tu ne vaux rien", "ferme ta gueule",
 
                 // Italian
                 "ti odio", "sei brutto", "sei brutta", "sei stupido", "sei stupida",
+                "non vali niente", "stai zitto", "stai zitta",
 
                 // German
-                "ich hasse dich", "du bist haesslich", "du bist dumm", "niemand mag dich"
+                "ich hasse dich", "du bist haesslich", "du bist dumm", "niemand mag dich",
+                "du bist wertlos", "halt die klappe",
+
+                // Dutch
+                "ik haat je", "je bent lelijk", "je bent dom", "niemand mag je",
+
+                // Polish
+                "nienawidze cie", "nienawidzę cię", "jestes glupi", "jesteś głupi",
+                "nikt cie nie lubi", "nikt cię nie lubi",
+
+                // Russian
+                "я тебя ненавижу", "ты урод", "ты тупой", "никто тебя не любит"
             ]
         },
         {
@@ -2325,19 +2439,29 @@ function moderateFeedback(value) {
                 // Spanish
                 "mandame nudes", "manda nudes", "mandame fotos desnudo",
                 "mandame fotos desnuda", "tener sexo con", "video sexual",
-                "foto explicita", "fotos explicitas",
+                "foto explicita", "fotos explicitas", "manda fotos desnuda",
+                "manda fotos desnudo",
 
                 // Portuguese
-                "manda nudes", "fazer sexo com",
+                "manda nudes", "fazer sexo com", "manda foto pelado", "manda foto pelada",
 
                 // French
-                "envoie des nudes", "avoir des relations sexuelles avec",
+                "envoie des nudes", "avoir des relations sexuelles avec", "envoie une photo nue",
 
                 // Italian
-                "manda nudes", "fare sesso con",
+                "manda nudes", "fare sesso con", "manda una foto nuda",
 
                 // German
-                "schick nudes", "sex mit"
+                "schick nudes", "sex mit", "schick ein nacktfoto",
+
+                // Dutch
+                "stuur nudes", "seks met", "stuur een naaktfoto",
+
+                // Polish
+                "wyslij nudes", "wyślij nudes", "seks z", "wyslij nagie zdjecie",
+
+                // Russian
+                "пришли нюдсы", "секс с", "пришли голое фото"
             ]
         }
     ];
@@ -2357,6 +2481,18 @@ function moderateFeedback(value) {
     const protectedGroupEs = String.raw`(?:negros?|blancos?|mexicanos?|latinos?|latinas?|hispanos?|hispanas?|asiaticos?|asiaticas?|indigenas?|inmigrantes?|musulmanes?|cristianos?|cristianas?|judios?|judias?|hindues?|budistas?|ateos?|ateas?|gays?|lesbianas?|bisexuales?|personas trans|transgeneros?|personas lgbtq|personas lgbt|discapacitados?|discapacitadas?|autistas?|mujeres?|hombres?)`;
     const abusiveDescriptorEs = String.raw`(?:estupidos?|estupidas?|idiotas?|tontos?|tontas?|asquerosos?|asquerosas?|malos?|malas?|inferiores?|basura|inutiles?|animales?|monos?|plaga|enfermos?|enfermas?|un problema)`;
 
+    const protectedGroupPt = String.raw`(?:negros?|brancos?|mexicanos?|latinos?|asiaticos?|asiaticas?|indigenas?|imigrantes?|muculmanos?|cristaos?|cristas?|judeus?|judias?|hindus?|budistas?|ateus?|ateias?|gays?|lesbicas?|bissexuais?|pessoas trans|transgeneros?|pessoas lgbtq|deficientes?|autistas?|mulheres?|homens?)`;
+    const abusiveDescriptorPt = String.raw`(?:estupidos?|estupidas?|idiotas?|burros?|burras?|nojentos?|nojentas?|inferiores?|lixo|inuteis?|animais?|macacos?|praga|um problema)`;
+
+    const protectedGroupFr = String.raw`(?:noirs?|blancs?|mexicains?|latinos?|asiatiques?|autochtones?|immigres?|immigrants?|musulmans?|chretiens?|juifs?|hindous?|bouddhistes?|athees?|gays?|lesbiennes?|bisexuels?|personnes trans|transgenres?|personnes lgbtq|handicapes?|autistes?|femmes?|hommes?)`;
+    const abusiveDescriptorFr = String.raw`(?:stupides?|idiots?|idiotes?|degoutants?|degoutantes?|inferieurs?|inferieures?|ordures?|inutiles?|animaux|singes?|vermine|un probleme)`;
+
+    const protectedGroupIt = String.raw`(?:neri?|bianchi?|messicani?|latini?|asiatici?|asiatiche?|indigeni?|immigrati?|musulmani?|cristiani?|ebrei?|induisti?|buddisti?|atei?|gay|lesbiche?|bisessuali?|persone trans|transgender|persone lgbtq|disabili?|autistici?|autistiche?|donne?|uomini?)`;
+    const abusiveDescriptorIt = String.raw`(?:stupidi?|stupide?|idioti?|idiote?|disgustosi?|disgustose?|inferiori?|spazzatura|inutili?|animali?|scimmie?|parassiti?|un problema)`;
+
+    const protectedGroupDe = String.raw`(?:schwarze|weisse|mexikaner|latinos|asiaten|indigene|einwanderer|muslime|christen|juden|hindus|buddhisten|atheisten|schwule|lesben|bisexuelle|trans menschen|transgender menschen|lgbtq menschen|behinderte|autisten|frauen|maenner)`;
+    const abusiveDescriptorDe = String.raw`(?:dumm|ekelhaft|boese|minderwertig|muell|wertlos|tiere|affen|ungeziefer|ein problem)`;
+
     const hatePatterns = [
         // English
         new RegExp(String.raw`\b(?:i\s+)?hate\s+(?:all\s+)?${protectedGroupEn}\b`, "iu"),
@@ -2371,7 +2507,27 @@ function moderateFeedback(value) {
         new RegExp(String.raw`\b${protectedGroupEs}\s+(?:deberian|deben)\s+(?:morir|irse|desaparecer|no existir|ser expulsados|ser expulsadas|ser prohibidos|ser prohibidas)\b`, "iu"),
         new RegExp(String.raw`\b(?:fuera|expulsen|prohiban|eliminen)\s+(?:a\s+)?(?:(?:todos?\s+)?los?\s+|(?:todas?\s+)?las?\s+)?${protectedGroupEs}\b`, "iu"),
         new RegExp(String.raw`\b(?:tu|esa)\s+(?:religion|fe|creencias?)\s+(?:es|son)\s+${abusiveDescriptorEs}\b`, "iu"),
-        new RegExp(String.raw`\bmuerte\s+a\s+(?:los?\s+|las?\s+)?${protectedGroupEs}\b`, "iu")
+        new RegExp(String.raw`\bmuerte\s+a\s+(?:los?\s+|las?\s+)?${protectedGroupEs}\b`, "iu"),
+
+        // Portuguese
+        new RegExp(String.raw`\b(?:odeio|detesto)\s+(?:todos?\s+|todas?\s+)?${protectedGroupPt}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupPt}\s+sao\s+(?:todos?\s+|todas?\s+)?${abusiveDescriptorPt}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupPt}\s+(?:devem|deveriam)\s+(?:morrer|sumir|ir embora|nao existir)\b`, "iu"),
+
+        // French
+        new RegExp(String.raw`\b(?:je\s+)?(?:hais|deteste)\s+(?:tous?\s+les?\s+|toutes?\s+les?\s+)?${protectedGroupFr}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupFr}\s+sont\s+(?:tous|toutes)?\s*${abusiveDescriptorFr}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupFr}\s+devraient\s+(?:mourir|partir|disparaitre|ne pas exister)\b`, "iu"),
+
+        // Italian
+        new RegExp(String.raw`\b(?:odio|detesto)\s+(?:tutti?\s+|tutte?\s+)?${protectedGroupIt}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupIt}\s+sono\s+(?:tutti|tutte)?\s*${abusiveDescriptorIt}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupIt}\s+dovrebbero\s+(?:morire|andarsene|sparire|non esistere)\b`, "iu"),
+
+        // German
+        new RegExp(String.raw`\bich\s+hasse\s+(?:alle\s+)?${protectedGroupDe}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupDe}\s+sind\s+(?:alle\s+)?${abusiveDescriptorDe}\b`, "iu"),
+        new RegExp(String.raw`\b${protectedGroupDe}\s+sollten\s+(?:sterben|verschwinden|gehen|nicht existieren)\b`, "iu")
     ];
 
     if (hatePatterns.some(pattern => pattern.test(normalized))) {
@@ -2383,7 +2539,10 @@ function moderateFeedback(value) {
     const phonePattern = /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}/;
     const addressPatterns = [
         /\b(?:my|their|his|her|your)\s+(?:home\s+)?address\s+is\b/i,
-        /\b(?:mi|tu|su)\s+direccion\s+(?:de\s+casa\s+)?es\b/i
+        /\b(?:mi|tu|su)\s+direccion\s+(?:de\s+casa\s+)?es\b/i,
+        /\b(?:meu|minha|seu|sua)\s+endereco\s+(?:de\s+casa\s+)?(?:e|é)\b/i,
+        /\b(?:mon|ma|ton|ta|son|sa)\s+adresse\s+(?:de\s+maison\s+)?(?:est|c est)\b/i,
+        /\b(?:mein|meine|dein|deine|sein|seine|ihr|ihre)\s+adresse\s+(?:ist|lautet)\b/i
     ];
 
     if (
@@ -3315,3 +3474,4 @@ startFirebaseListener();
     border-left: 4px solid #c73a32;
 }
 </style>
+
