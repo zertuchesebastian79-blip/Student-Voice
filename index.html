@@ -2016,205 +2016,336 @@ footer {
 
 
 
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import {
+    getFirestore,
+    collection,
+    addDoc,
+    onSnapshot,
+    doc,
+    updateDoc,
+    increment,
+    serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyAdTKeBMOeJZBWJ1ARAy9LUVzu7sn4FLEo",
+    authDomain: "student-voice-bcf52.firebaseapp.com",
+    projectId: "student-voice-bcf52",
+    storageBucket: "student-voice-bcf52.firebasestorage.app",
+    messagingSenderId: "255069425794",
+    appId: "1:255069425794:web:095e23438957077155649b",
+    measurementId: "G-NJY6TBHBKT"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const ideasCollection = collection(db, "ideas");
+
+window.studentVoiceAddIdea = async function(idea) {
+    const docRef = await addDoc(ideasCollection, {
+        ...idea,
+        createdAt: serverTimestamp()
+    });
+    return docRef.id;
+};
+
+window.studentVoiceVoteIdea = async function(id) {
+    await updateDoc(doc(db, "ideas", id), {
+        votes: increment(1)
+    });
+};
+
+window.studentVoiceSubscribe = function(onIdeas, onError) {
+    return onSnapshot(
+        ideasCollection,
+        (snapshot) => {
+            const sharedIdeas = snapshot.docs.map((item) => {
+                const data = item.data();
+                const createdAt = data.createdAt && typeof data.createdAt.toMillis === "function"
+                    ? data.createdAt.toMillis()
+                    : (data.date || Date.now());
+
+                return {
+                    id: item.id,
+                    ...data,
+                    date: createdAt
+                };
+            });
+
+            onIdeas(sharedIdeas);
+        },
+        onError
+    );
+};
+
+window.dispatchEvent(new Event("studentVoiceFirebaseReady"));
+</script>
+
 <script>
 
 /* =================================
-   STARTER DATA
+   SHARED FIRESTORE DATA
 ================================= */
 
-const starterIdeas = [];
+let ideas = [];
+let selectedCategory = "All";
+let firebaseListenerStarted = false;
 
+function renderSharedIdeas(sharedIdeas) {
+    ideas = sharedIdeas;
+    displayIdeas();
+    updateStats();
+    updateTrending();
+}
 
+function startFirebaseListener() {
+    if (firebaseListenerStarted || !window.studentVoiceSubscribe) {
+        return;
+    }
+
+    firebaseListenerStarted = true;
+
+    window.studentVoiceSubscribe(
+        renderSharedIdeas,
+        (error) => {
+            console.error("Firestore connection error:", error);
+            firebaseListenerStarted = false;
+            alert("Student Voice could not connect to the shared database. Check the Firebase setup and Firestore rules.");
+        }
+    );
+}
+
+window.addEventListener(
+    "studentVoiceFirebaseReady",
+    startFirebaseListener,
+    { once: true }
+);
 
 /* =================================
-   STORAGE
+   AUTOMATIC MODERATION
+   Flags inappropriate submissions automatically.
+   The post still appears immediately; no approval step.
 ================================= */
 
-let ideas =
-    JSON.parse(
-        localStorage.getItem(
-            "studentVoiceIdeas_V3"
-        )
-    );
+function normalizeForModeration(value) {
 
-if (!ideas) {
-
-    ideas =
-        starterIdeas;
-
-    saveIdeas();
+    return value
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[@4]/g, "a")
+        .replace(/3/g, "e")
+        .replace(/[1!|]/g, "i")
+        .replace(/0/g, "o")
+        .replace(/[$5]/g, "s")
+        .replace(/7/g, "t")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 
 }
 
 
-let selectedCategory =
-    "All";
+function moderateFeedback(value) {
 
+    const normalized =
+        normalizeForModeration(value);
+
+    const compact =
+        normalized.replace(/\s/g, "");
+
+    const rules = [
+        {
+            reason: "Profanity",
+            words: [
+                "fuck", "fucking", "fucker",
+                "shit", "bullshit",
+                "bitch", "asshole",
+                "motherfucker", "cunt"
+            ]
+        },
+        {
+            reason: "Sexual content",
+            words: [
+                "porn", "porno", "nudes", "nude",
+                "sendnudes", "sexvideo"
+            ]
+        },
+        {
+            reason: "Threatening language",
+            phrases: [
+                "kill you", "shoot you", "hurt you",
+                "bomb the school", "school shooting",
+                "go die"
+            ]
+        },
+        {
+            reason: "Harassment",
+            phrases: [
+                "i hate you", "you are ugly",
+                "youre ugly", "you are stupid",
+                "youre stupid", "you are a loser",
+                "youre a loser"
+            ]
+        }
+    ];
+
+
+    for (const rule of rules) {
+
+        if (rule.words) {
+
+            for (const word of rule.words) {
+
+                const wordPattern =
+                    new RegExp(
+                        "\\b" + word + "\\b",
+                        "i"
+                    );
+
+                if (
+                    wordPattern.test(normalized)
+                    ||
+                    (word.length >= 4 && compact.includes(word))
+                ) {
+
+                    return {
+                        flagged: true,
+                        reason: rule.reason
+                    };
+
+                }
+
+            }
+
+        }
+
+
+        if (rule.phrases) {
+
+            for (const phrase of rule.phrases) {
+
+                if (
+                    normalized.includes(phrase)
+                    ||
+                    compact.includes(
+                        phrase.replace(/\s/g, "")
+                    )
+                ) {
+
+                    return {
+                        flagged: true,
+                        reason: rule.reason
+                    };
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+    return {
+        flagged: false,
+        reason: ""
+    };
+
+}
 
 
 /* =================================
    SUBMIT IDEA
 ================================= */
 
-function submitIdea() {
+async function submitIdea() {
 
-    const input =
-        document.getElementById(
-            "ideaInput"
-        );
-
-    const category =
-        document.getElementById(
-            "categoryInput"
-        );
-
-    const text =
-        input.value.trim();
-
+    const input = document.getElementById("ideaInput");
+    const category = document.getElementById("categoryInput");
+    const text = input.value.trim();
 
     if (!text) {
-
-        alert(
-            "Write your idea before submitting."
-        );
-
+        alert("Write your idea before submitting.");
         return;
-
     }
 
+    if (text.length > 500) {
+        alert("Please keep your idea under 500 characters.");
+        return;
+    }
+
+    if (!window.studentVoiceAddIdea) {
+        alert("The shared database is still connecting. Try again in a moment.");
+        return;
+    }
+
+    const moderation = moderateFeedback(text);
 
     const idea = {
-
-        id:
-            Date.now(),
-
-        text:
-            text,
-
-        category:
-            category.value,
-
-        votes:
-            0,
-
-        status:
-            "NEW",
-
-        date:
-            Date.now()
-
+        text: text,
+        category: category.value,
+        votes: 0,
+        status: moderation.flagged ? "FLAGGED" : "NEW",
+        flagged: moderation.flagged,
+        flagReason: moderation.reason,
+        date: Date.now()
     };
 
-
-    ideas.unshift(
-        idea
-    );
-
-
-    input.value =
-        "";
-
-
-    saveIdeas();
-
-    displayIdeas();
-
-    updateStats();
-
-    updateTrending();
-
-
-    alert(
-        "Your idea has been submitted."
-    );
-
+    try {
+        await window.studentVoiceAddIdea(idea);
+        input.value = "";
+        alert("Your idea has been submitted.");
+    }
+    catch (error) {
+        console.error("Submit error:", error);
+        alert("Your idea could not be submitted. Please try again.");
+    }
 }
-
 
 
 /* =================================
    VOTE
 ================================= */
 
-function voteIdea(id) {
+async function voteIdea(id) {
 
-    const idea =
-        ideas.find(
-            x => x.id === id
-        );
+    const idea = ideas.find(x => x.id === id);
 
-
-    if (!idea)
+    if (!idea) {
         return;
-
-
-    const votedIdeas =
-        JSON.parse(
-            localStorage.getItem(
-                "studentVotes_V3"
-            )
-        ) || [];
-
-
-    if (
-        votedIdeas.includes(id)
-    ) {
-
-        alert(
-            "You've already supported this idea."
-        );
-
-        return;
-
     }
 
+    const votedIdeas = JSON.parse(
+        localStorage.getItem("studentVotes_V3")
+    ) || [];
 
-    idea.votes++;
+    if (votedIdeas.includes(id)) {
+        alert("You've already supported this idea.");
+        return;
+    }
 
+    if (!window.studentVoiceVoteIdea) {
+        alert("The shared database is still connecting. Try again in a moment.");
+        return;
+    }
 
-    votedIdeas.push(
-        id
-    );
+    try {
+        await window.studentVoiceVoteIdea(id);
 
-
-    localStorage.setItem(
-        "studentVotes_V3",
-        JSON.stringify(
-            votedIdeas
-        )
-    );
-
-
-    saveIdeas();
-
-    displayIdeas();
-
-    updateStats();
-
-    updateTrending();
-
+        votedIdeas.push(id);
+        localStorage.setItem(
+            "studentVotes_V3",
+            JSON.stringify(votedIdeas)
+        );
+    }
+    catch (error) {
+        console.error("Vote error:", error);
+        alert("Your support could not be recorded. Please try again.");
+    }
 }
-
-
-
-/* =================================
-   SAVE
-================================= */
-
-function saveIdeas() {
-
-    localStorage.setItem(
-
-        "studentVoiceIdeas_V3",
-
-        JSON.stringify(
-            ideas
-        )
-
-    );
-
-}
-
 
 
 /* =================================
@@ -2360,7 +2491,11 @@ function displayIdeas() {
 
 
             card.className =
-                "idea-card card";
+                "idea-card card"
+                +
+                (idea.flagged
+                    ? " auto-flagged"
+                    : "");
 
 
             card.innerHTML =
@@ -2377,10 +2512,12 @@ function displayIdeas() {
                 </span>
 
 
-                <span class="status-tag">
+                <span class="status-tag ${idea.flagged ? "flagged" : ""}">
 
                     ${escapeHTML(
-                        idea.status
+                        idea.flagged
+                            ? "FLAGGED"
+                            : (idea.status || "NEW")
                     )}
 
                 </span>
@@ -2412,7 +2549,7 @@ function displayIdeas() {
                     class="vote-btn"
                     onclick="
                     voteIdea(
-                        ${idea.id}
+                        '${idea.id}'
                     )">
 
                     
@@ -2984,12 +3121,10 @@ function escapeHTML(
 ================================= */
 
 displayIdeas();
-
 updateStats();
-
 updateTrending();
-
 updatePoll();
+startFirebaseListener();
 
 </script>
 
@@ -3036,5 +3171,17 @@ updatePoll();
 }
 .faction-name, .right-title, .topic-name {
     letter-spacing: 0;
+}
+
+
+/* Automatic moderation flag */
+.status-tag.flagged {
+    background: #fff1f0;
+    color: #a61b1b;
+    border: 1px solid #f0b7b2;
+}
+
+.idea-card.auto-flagged {
+    border-left: 4px solid #c73a32;
 }
 </style>
