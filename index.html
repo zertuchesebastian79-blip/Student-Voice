@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Student Voice</title>
+<meta name="student-voice-build" content="firebase-hidden-flags-v2">
 
 <style>
 
@@ -2090,6 +2091,23 @@ window.dispatchEvent(new Event("studentVoiceFirebaseReady"));
 ================================= */
 
 let ideas = [];
+
+/* =================================
+   PUBLIC VISIBILITY FILTER
+   Flagged submissions stay in Firestore for private review,
+   but are never shown anywhere in the student-facing site.
+================================= */
+function isIdeaPublic(idea) {
+    if (!idea) return false;
+
+    const status = String(idea.status || "").trim().toUpperCase();
+
+    return idea.flagged !== true && status !== "FLAGGED";
+}
+
+function getVisibleIdeas() {
+    return ideas.filter(isIdeaPublic);
+}
 let selectedCategory = "All";
 let firebaseListenerStarted = false;
 
@@ -2314,7 +2332,7 @@ async function voteIdea(id) {
 
     const idea = ideas.find(x => x.id === id);
 
-    if (!idea) {
+    if (!idea || !isIdeaPublic(idea)) {
         return;
     }
 
@@ -2376,7 +2394,7 @@ function displayIdeas() {
 
 
     let filtered =
-        ideas.filter(
+        getVisibleIdeas().filter(
             idea => {
 
                 const categoryMatch =
@@ -2694,18 +2712,20 @@ function showAllIdeas() {
 
 function updateStats() {
 
+    const visibleIdeas = getVisibleIdeas();
+
     document.getElementById(
         "ideaCount"
     )
     .innerText =
-        ideas.length;
+        visibleIdeas.length;
 
 
     const votes =
-        ideas.reduce(
+        visibleIdeas.reduce(
             (total, idea) =>
                 total +
-                idea.votes,
+                (Number(idea.votes) || 0),
             0
         );
 
@@ -2719,7 +2739,7 @@ function updateStats() {
 
     const categories =
         new Set(
-            ideas.map(
+            visibleIdeas.map(
                 x =>
                     x.category
             )
@@ -2737,10 +2757,9 @@ function updateStats() {
         "allCount"
     )
     .innerText =
-        ideas.length;
+        visibleIdeas.length;
 
 }
-
 
 
 /* =================================
@@ -2756,7 +2775,7 @@ function updateTrending() {
 
 
     const trending =
-        [...ideas]
+        [...getVisibleIdeas()]
         .sort(
             (a,b) =>
                 b.votes -
