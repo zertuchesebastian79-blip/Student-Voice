@@ -2187,7 +2187,7 @@ function moderateFeedback(value) {
 
     /*
        Multilingual school-safety filter.
-       Broad profanity, slur, sexual-content, threat, bullying, and identity-
+       Broad profanity, slur, sexual-content/slang, threat, bullying, and identity-
        attack coverage for English, Spanish, Portuguese, French, Italian,
        German, Dutch, Polish, and Russian. Identity/religion terms by themselves
        are NEVER blocked; only abusive or demeaning use is filtered.
@@ -2274,34 +2274,50 @@ function moderateFeedback(value) {
         {
             reason: "Sexual or explicit content",
             words: [
-                // English
+                // English — explicit slang, explicit media, and sexual solicitations
                 "porn", "porno", "pornography", "nudes", "nude", "sendnudes",
                 "sexvideo", "sextape", "blowjob", "handjob", "cumshot",
+                "dick", "dicks", "cock", "cocks", "penis", "pussy", "vagina",
+                "boobs", "tits", "horny", "masturbate", "masturbation", "orgasm",
 
-                // Spanish
-                "pornografia", "desnudo", "desnuda", "desnudos", "desnudas",
-                "sextape", "sexting", "sexoexplicito",
+                // Spanish — Mexico + broader Latin America/Spain
+                "pornografia", "porno", "desnudo", "desnuda", "desnudos", "desnudas",
+                "sextape", "sexting", "sexoexplicito", "pito", "pitos", "pene", "penes",
+                "polla", "pollas", "verga", "vergas", "chota", "chotas", "teta", "tetas",
+                "chichis", "vagina", "vaginas", "vulva", "vulvas", "masturbar", "masturbarse",
+                "masturbacion", "orgasmo", "orgasmos", "coger", "cogiendo", "follar", "follando",
+                "chuparla", "mamarsela", "mamada", "mamadas", "caliente",
 
                 // Portuguese
-                "pornografia", "nudes", "sexting",
+                "pornografia", "porno", "nudes", "sexting", "piroca", "pirocas", "pau",
+                "caralho", "buceta", "vagina", "vaginas", "peitos", "tetinha", "tesao",
+                "masturbar", "masturbacao", "orgasmo", "gozar", "boquete",
 
                 // French
-                "pornographie", "sexting",
+                "pornographie", "porno", "sexting", "nudes", "nue", "nues", "nu", "bite",
+                "penis", "vagin", "vagine", "seins", "nichons", "masturbation", "orgasme",
+                "branlette", "sucer",
 
                 // Italian
-                "pornografia", "sexting",
+                "pornografia", "porno", "sexting", "nudes", "nudo", "nuda", "nudi", "nude",
+                "cazzo", "pene", "vagina", "tette", "masturbazione", "orgasmo", "sega",
+                "pompino",
 
                 // German
-                "pornografie", "nacktbilder", "sexting",
+                "pornografie", "porno", "nacktbilder", "sexting", "nackt", "penis", "vagina",
+                "brueste", "bruste", "masturbation", "orgasmus", "blasen", "wichsen",
 
                 // Dutch
-                "pornografie", "naaktfoto", "naaktfotos",
+                "pornografie", "porno", "naaktfoto", "naaktfotos", "naakt", "penis", "vagina",
+                "borsten", "masturbatie", "orgasme", "pijpen",
 
                 // Polish
-                "pornografia", "nagie", "nudes",
+                "pornografia", "porno", "nagie", "nudes", "nagi", "naga", "penis", "wagina",
+                "piersi", "masturbacja", "orgazm", "lodzik",
 
                 // Russian
-                "порно", "порнография", "нюдсы"
+                "порно", "порнография", "нюдсы", "голый", "голая", "голые", "пенис", "вагина",
+                "грудь", "сиськи", "мастурбация", "оргазм", "минет"
             ]
         }
     ];
@@ -2433,35 +2449,42 @@ function moderateFeedback(value) {
             reason: "Sexual or explicit content",
             phrases: [
                 // English
-                "send me nudes", "send nude", "sex with", "have sex with",
-                "explicit picture", "explicit photo",
+                "send me nudes", "send nude", "send pics", "send me pics", "sex with", "have sex with",
+                "explicit picture", "explicit photo", "show me your body", "show me your chest",
 
                 // Spanish
                 "mandame nudes", "manda nudes", "mandame fotos desnudo",
-                "mandame fotos desnuda", "tener sexo con", "video sexual",
-                "foto explicita", "fotos explicitas", "manda fotos desnuda",
-                "manda fotos desnudo",
+                "mandame fotos desnuda", "mandame fotos", "manda fotos", "tener sexo con", "video sexual",
+                "foto explicita", "fotos explicitas", "manda fotos desnuda", "manda fotos desnudo",
+                "ensename tu cuerpo", "enseñame tu cuerpo", "quiero cogerte", "quiero follarte",
+                "te quiero coger", "te quiero follar", "chupamela", "chúpamela",
 
                 // Portuguese
-                "manda nudes", "fazer sexo com", "manda foto pelado", "manda foto pelada",
+                "manda nudes", "manda fotos", "fazer sexo com", "manda foto pelado", "manda foto pelada",
+                "mostra seu corpo", "quero transar com voce",
 
                 // French
-                "envoie des nudes", "avoir des relations sexuelles avec", "envoie une photo nue",
+                "envoie des nudes", "envoie des photos", "avoir des relations sexuelles avec",
+                "envoie une photo nue", "montre moi ton corps",
 
                 // Italian
-                "manda nudes", "fare sesso con", "manda una foto nuda",
+                "manda nudes", "manda foto", "fare sesso con", "manda una foto nuda",
+                "fammi vedere il tuo corpo",
 
                 // German
-                "schick nudes", "sex mit", "schick ein nacktfoto",
+                "schick nudes", "schick bilder", "sex mit", "schick ein nacktfoto",
+                "zeig mir deinen koerper",
 
                 // Dutch
-                "stuur nudes", "seks met", "stuur een naaktfoto",
+                "stuur nudes", "stuur fotos", "seks met", "stuur een naaktfoto",
+                "laat je lichaam zien",
 
                 // Polish
-                "wyslij nudes", "wyślij nudes", "seks z", "wyslij nagie zdjecie",
+                "wyslij nudes", "wyślij nudes", "wyslij zdjecia", "wyślij zdjęcia", "seks z",
+                "wyslij nagie zdjecie", "pokaz mi swoje cialo",
 
                 // Russian
-                "пришли нюдсы", "секс с", "пришли голое фото"
+                "пришли нюдсы", "пришли фото", "секс с", "пришли голое фото", "покажи свое тело"
             ]
         }
     ];
